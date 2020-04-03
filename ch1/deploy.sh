@@ -22,6 +22,5 @@ aws cloudformation deploy --region $REGION \
 if [ $? -eq 0 ]; then
   aws cloudformation list-exports \
     --profile $CLI_PROFILE \
-    --region $REGION \
-    --query "Exports[?ends_with(Name,'InstanceEndpoint')].Value"
+    --region $REGION | cat  > exports
 fi

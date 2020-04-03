@@ -170,9 +170,23 @@ Resources:
 
   # TODO - Set Outbound
 
+  KinesisStream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      ShardCount: 2
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+
 Outputs:
   BastionInstanceEndpoint:
     Description: 'Bastion Public IP'
     Value: !Sub 'http://${BastionInstance.PublicIp}'
     Export:
       Name: BastionInstanceEndpoint
+
+  KinesisStream:
+    Description: 'Kinesis Stream ARN'
+    Value: !Sub '${KinesisStream.Arn}'
+    Export:
+      Name: KinesisStreamArn

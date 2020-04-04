@@ -178,6 +178,23 @@ Resources:
         - Key: Name
           Value: !Ref AWS::StackName
 
+  DynamoDB:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: "vin"
+          AttributeType: "S"
+      KeySchema:
+        - AttributeName: "vin"
+          KeyType: "HASH"
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+
 Outputs:
   BastionInstanceEndpoint:
     Description: 'Bastion Public IP'

@@ -156,17 +156,47 @@ type Aggregator_iface interface {}
 //   }
 
 type TruckArrivesAggregator struct {
-// ts, v, loc
+  // fmt.Println("TruckArrivesAggregator")
+  // ts, v, loc
 }
 
 type TruckDepartsAggregator struct {
-// ts, v, loc
+  // fmt.Println("TruckDepartsAggregator")
+  // ts, v, loc
 }
 
 type MechanicChangesOilAggregator struct {
-// ts, _, v
+  // fmt.Println("MechanicChangesOilAggregator")
+  // ts, _, v
 }
 
+func NewTruckArrivesAggregator() {
+  fmt.Println("TruckArrivesAggregator")
+  // ts, v, loc
+}
+
+func NewTruckDepartsAggregator() {
+  fmt.Println("TruckDepartsAggregator")
+  // ts, v, loc
+}
+
+func NewMechanicChangesOilAggregator() {
+  fmt.Println("MechanicChangesOilAggregator")
+  // ts, _, v
+}
+
+func GetRelevantRow(event string) Aggregator_iface {
+	switch event {
+
+    case "TRUCK_ARRIVES":
+      return nil
+    case "TRUCK_DEPARTS":
+      return nil
+    default:
+  		fmt.Println("type undefined")
+  		return nil
+  }
+}
 
 //
 
@@ -175,9 +205,9 @@ type Row struct {
   Vin string
   Mileage int
   MileageAtOilChange int //optional - int
-  LocationTs Location //option - location, DateTime
+  Location //option - location, DateTime
   Timestamp time.Time //aux
-
+  
 }
 
 
@@ -250,37 +280,71 @@ func main() {
 // Relevant rows are: TruckArrives (TA), TruckDeparts (TD), MechanicChangesOil (MCO)
 func Map(event []string) []Row {
   list := []Row{}
-  // elevation, _ := strconv.Atoi(event[1])
-  mileage, _ := strconv.Atoi(event[5])
 
-  //Parse Time
-  stringTs := event[4]
-  ts, err := time.Parse(time.RFC3339, stringTs)
+  // "TRUCK_ARRIVES","6","51.522834","-0.081813","2018-01-12T12:42:00Z","33207","1HGCM82633A004352"
+  eventType := event[0]
+  elevation := event[1]
+  latitude  := event[2]
+  longitude := event[3]
+  timestamp := event[4]
+  mileage   := event[5]
+  truckVin  := event[6]
+
+  parsedElevation, err := strconv.Atoi(elevation)
+
+  if err != nil {
+    panic(err)
+  }
+
+  parsedMileage, err := strconv.Atoi(mileage)
+
+  if err != nil {
+    panic(err)
+  }
+
+
+  parsedTs, err := time.Parse(time.RFC3339, timestamp)
+
+  if err != nil {
+    panic(err)
+  }
+
+  parsedLat, err := strconv.ParseFloat(latitude, 64)
+
+  if err != nil {
+    panic(err)
+  }
+
+
+  parsedLong, err := strconv.ParseFloat(longitude, 64)
 
   if err != nil {
     panic(err)
   }
 
   list = append(list, Row {
-    EventType: event[0],
-    // LocationTs: {Elevation: elevation, Latitude: event[2], Longitude: event[3]},
-    // event[4] - Locatio
-    Timestamp: ts,
-    Mileage: mileage,
-    Vin: event[6],
+    EventType: eventType,
+    Location: Location {
+      Elevation: parsedElevation,
+      Latitude: parsedLat,
+      Longitude: parsedLong,
+    },
+    Timestamp: parsedTs,
+    Mileage: parsedMileage,
+    Vin: truckVin,
   })
 
   return list
 }
 
-// Reducer implementation
+
 func Reducer(mapList chan []Row, sendFinalValue chan []Row) {
 
   final := []Row{}
 
   for list := range mapList {
     for _, value := range list {
-      if value.EventType == "TRUCK_ARRIVES" {
+      if (value.EventType == "TRUCK_ARRIVES") {
         final = append(final, value)
       }
     }

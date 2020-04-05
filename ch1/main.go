@@ -2,7 +2,11 @@ package main
 
 import(
   "fmt"
+  "encoding/csv"
   "encoding/json"
+  "os"
+  "strconv"
+  "sync"
   "time"
 
   // "github.com/aws/aws-sdk-go/aws"
@@ -11,14 +15,6 @@ import(
   // "github.com/aws/aws-lambda-go/lambda"
   "github.com/google/uuid"
 )
-
-// Creates event interface in order to be able to create an event according
-// to the type
-type Event_iface interface {}
-
-type EventSniffer struct {
-  Event string
-}
 
 type Employee struct {
   Id uuid.UUID
@@ -46,6 +42,14 @@ type Customer struct {
 }
 
 //// Type of events
+// Creates event interface in order to be able to create an event according
+// to the type
+type Event_iface interface {}
+
+type EventSniffer struct {
+  Event string
+}
+
 type TruckArrives struct {
   Timestamp time.Time
   Vehicle Vehicle
@@ -112,24 +116,7 @@ func NewDriverMissesCustomer(req []byte) *DriverMissesCustomer {
   return event
 }
 
-
-func main() {
-
-  req := []byte(`{"event":"TRUCK_ARRIVES", "location": {"elevation":7,
-  "latitude":51.522834, "longitude":-0.081813},
-  "timestamp": "2018-01-12T12:42:00Z", "vehicle": {"mileage":33207,
-  "vin":"1HGCM82633A004352"}}`)
-
-  // Declare a new EventSniffer struct
-  var eventSniffer EventSniffer
-  json.Unmarshal([]byte(req), &eventSniffer)
-
-  event := GetTypeOfEvent(eventSniffer.Event, req)
-
-  fmt.Println(event)
-}
-
-// Factory - Assamble 
+// Factory - Assamble
 func GetTypeOfEvent(event string, req []byte) Event_iface {
 	switch event {
 
@@ -152,4 +139,174 @@ func GetTypeOfEvent(event string, req []byte) Event_iface {
   		fmt.Println("type undefined")
   		return nil
   }
+}
+
+/////
+// Creates Aggregator interface in order to be able to create an aggregation
+// according to the type: TruckArrives (TA), TruckDeparts (TD), MechanicChangesOil (MCO)
+type Aggregator_iface interface {}
+
+// object Aggregator {
+//
+//   def map(event: Event): Option[Row] = event match {
+//     case TA(ts, v, loc) => Some(Row(v.vin, v.mileage, None, Some(loc, ts)))
+//     case TD(ts, v, loc) => Some(Row(v.vin, v.mileage, None, Some(loc, ts)))
+//     case MCO(ts, _, v)  => Some(Row(v.vin, v.mileage, Some(v.mileage), None))
+//     case _              => None
+//   }
+
+type TruckArrivesAggregator struct {
+// ts, v, loc
+}
+
+type TruckDepartsAggregator struct {
+// ts, v, loc
+}
+
+type MechanicChangesOilAggregator struct {
+// ts, _, v
+}
+
+
+//
+
+type Row struct {
+  EventType string
+  Vin string
+  Mileage int
+  MileageAtOilChange int //optional - int
+  LocationTs Location //option - location, DateTime
+  Timestamp time.Time //aux
+
+}
+
+
+func main() {
+
+  // req := []byte(`{"event":"TRUCK_ARRIVES", "location": {"elevation":7,
+  // "latitude":51.522834, "longitude":-0.081813},
+  // "timestamp": "2018-01-12T12:42:00Z", "vehicle": {"mileage":33207,
+  // "vin":"1HGCM82633A004352"}}`)
+  //
+  // // Declare a new EventSniffer struct
+  // var eventSniffer EventSniffer
+  // json.Unmarshal([]byte(req), &eventSniffer)
+  //
+  // event := GetTypeOfEvent(eventSniffer.Event, req)
+  //
+  // fmt.Println(event)
+
+  fileName := "sample.csv"
+
+  f, err := os.Open(fileName)
+
+  if err != nil {
+    panic(err)
+  }
+
+  defer f.Close()
+
+  // Read Files into a Variable
+  lines, err := csv.NewReader(f).ReadAll()
+
+  if err != nil {
+    panic(err)
+  }
+
+  // Create the first mapper list
+  // Reference: https://medium.com/@jayhuang75/a-simple-mapreduce-in-go-42c929b000c5
+  lists := make(chan []Row)
+
+  // Ensure the final value after Reducer is obtained.
+  finalValue := make(chan []Row)
+
+  // Ensure all send operations are done.
+  var wg sync.WaitGroup
+
+  // Mapping
+  wg. Add(len(lines))
+
+  for _, line := range lines {
+    go func(event []string) {
+      defer wg.Done()
+      lists <- Map(event)
+    }(line)
+  }
+
+  go Reducer(lists, finalValue)
+
+  wg.Wait()
+  close(lists)
+  ch := <-finalValue
+
+  grouppedMap := Groupper(ch)
+
+  for _, value := range grouppedMap {
+    fmt.Println(value)
+  }
+}
+
+// Mapper Implementation - Separates irrelevant rows from non-relevant.
+// Relevant rows are: TruckArrives (TA), TruckDeparts (TD), MechanicChangesOil (MCO)
+func Map(event []string) []Row {
+  list := []Row{}
+  // elevation, _ := strconv.Atoi(event[1])
+  mileage, _ := strconv.Atoi(event[5])
+
+  //Parse Time
+  stringTs := event[4]
+  ts, err := time.Parse(time.RFC3339, stringTs)
+
+  if err != nil {
+    panic(err)
+  }
+
+  list = append(list, Row {
+    EventType: event[0],
+    // LocationTs: {Elevation: elevation, Latitude: event[2], Longitude: event[3]},
+    // event[4] - Locatio
+    Timestamp: ts,
+    Mileage: mileage,
+    Vin: event[6],
+  })
+
+  return list
+}
+
+// Reducer implementation
+func Reducer(mapList chan []Row, sendFinalValue chan []Row) {
+
+  final := []Row{}
+
+  for list := range mapList {
+    for _, value := range list {
+      if value.EventType == "TRUCK_ARRIVES" {
+        final = append(final, value)
+      }
+    }
+  }
+  sendFinalValue <- final
+
+}
+
+func Groupper(reducedList []Row)  map[string]Row {
+
+  final := make(map[string]Row)
+
+  for _, list := range reducedList {
+
+    // Stores truck identifier
+    truckVin := list.Vin
+
+    if _, ok := final[truckVin]; ok {
+      // Checks which time is more recent.
+      if final[truckVin].Timestamp.Before(list.Timestamp) {
+        final[truckVin] = list
+      }
+    } else {
+      final[truckVin] = list
+    }
+  }
+
+  return final
 }

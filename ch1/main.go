@@ -2,18 +2,25 @@ package main
 
 import(
   "fmt"
-  "encoding/csv"
+  _ "encoding/csv"
   "encoding/json"
   "os"
   "strconv"
-  "sync"
+  _ "sync"
   "time"
+
+  "github.com/aws/aws-sdk-go/aws"
+  "github.com/aws/aws-sdk-go/aws/credentials"
+  "github.com/aws/aws-sdk-go/aws/session"
+
+  "github.com/joho/godotenv"
+  "github.com/guregu/dynamo"
+  "github.com/google/uuid"
 
   // "github.com/aws/aws-sdk-go/aws"
   // "github.com/aws/aws-lambda-go"
   // "github.com/aws/aws-sdk-go/service/kinesis"
   // "github.com/aws/aws-lambda-go/lambda"
-  "github.com/google/uuid"
 )
 
 type Employee struct {
@@ -198,18 +205,44 @@ func GetRelevantRow(event string) Aggregator_iface {
   }
 }
 
-//
-
+// DynamoDB Schema
+// Truck VIN
+// Latitude
+// Longitude
+// Location timestamp
+// Mileage
+// Mileage at oil change
 type Row struct {
   EventType string
   Vin string
-  Mileage int
-  MileageAtOilChange int //optional - int
   Location //option - location, DateTime
   Timestamp time.Time //aux
-  
+  Mileage int
+  MileageAtOilChange int //optional - int
+
 }
 
+var db *dynamo.DB
+var dbTableName string
+
+func init() {
+
+  e := godotenv.Load()
+
+  if e != nil {
+    fmt.Println("ENV: ", e)
+  }
+
+  accessKey := os.Getenv("ACCESS_KEY")
+  secretKey := os.Getenv("SECRET_KEY")
+  region := os.Getenv("REGION")
+  dbTableName = os.Getenv("DYNAMO_DB_NAME")
+
+  db = dynamo.New(session.New(), &aws.Config{
+    Credentials: credentials.NewStaticCredentials(accessKey, secretKey, ""),
+    Region: aws.String(region),
+  })
+}
 
 func main() {
 
@@ -226,54 +259,64 @@ func main() {
   //
   // fmt.Println(event)
 
-  fileName := "sample.csv"
+  // fileName := "sample.csv"
+  //
+  // f, err := os.Open(fileName)
+  //
+  // if err != nil {
+  //   panic(err)
+  // }
+  //
+  // defer f.Close()
+  //
+  // // Read Files into a Variable
+  // lines, err := csv.NewReader(f).ReadAll()
+  //
+  // if err != nil {
+  //   panic(err)
+  // }
+  //
+  // // Create the first mapper list
+  // // Reference: https://medium.com/@jayhuang75/a-simple-mapreduce-in-go-42c929b000c5
+  // lists := make(chan []Row)
+  //
+  // // Ensure the final value after Reducer is obtained.
+  // finalValue := make(chan []Row)
+  //
+  // // Ensure all send operations are done.
+  // var wg sync.WaitGroup
+  //
+  // // Mapping
+  // wg. Add(len(lines))
+  //
+  // for _, line := range lines {
+  //   go func(event []string) {
+  //     defer wg.Done()
+  //     lists <- Map(event)
+  //   }(line)
+  // }
+  //
+  // go Reducer(lists, finalValue)
+  //
+  // wg.Wait()
+  // close(lists)
+  // ch := <-finalValue
+  //
+  // grouppedMap := Groupper(ch)
+  //
+  // for _, value := range grouppedMap {
+  //   fmt.Println(value)
+  // }
 
-  f, err := os.Open(fileName)
+  timestamp := "2015-01-12T12:42:00Z"
+  parsedTs, err := time.Parse(time.RFC3339, timestamp)
 
   if err != nil {
     panic(err)
   }
 
-  defer f.Close()
-
-  // Read Files into a Variable
-  lines, err := csv.NewReader(f).ReadAll()
-
-  if err != nil {
-    panic(err)
-  }
-
-  // Create the first mapper list
-  // Reference: https://medium.com/@jayhuang75/a-simple-mapreduce-in-go-42c929b000c5
-  lists := make(chan []Row)
-
-  // Ensure the final value after Reducer is obtained.
-  finalValue := make(chan []Row)
-
-  // Ensure all send operations are done.
-  var wg sync.WaitGroup
-
-  // Mapping
-  wg. Add(len(lines))
-
-  for _, line := range lines {
-    go func(event []string) {
-      defer wg.Done()
-      lists <- Map(event)
-    }(line)
-  }
-
-  go Reducer(lists, finalValue)
-
-  wg.Wait()
-  close(lists)
-  ch := <-finalValue
-
-  grouppedMap := Groupper(ch)
-
-  for _, value := range grouppedMap {
-    fmt.Println(value)
-  }
+  row := Row{Vin: "6", Timestamp: parsedTs, Mileage: 2015}
+  Writer(db, row, dbTableName)
 }
 
 // Mapper Implementation - Separates irrelevant rows from non-relevant.
@@ -344,7 +387,7 @@ func Reducer(mapList chan []Row, sendFinalValue chan []Row) {
 
   for list := range mapList {
     for _, value := range list {
-      if (value.EventType == "TRUCK_ARRIVES") {
+      if (value.EventType == "TRUCK_ARRIVES") || (value.EventType == "TRUCK_DEPARTS") {
         final = append(final, value)
       }
     }
@@ -373,4 +416,35 @@ func Groupper(reducedList []Row)  map[string]Row {
   }
 
   return final
+}
+
+func Writer(theDb *dynamo.DB, theRow Row, dbTableName string) {
+
+  table := theDb.Table(dbTableName)
+
+  // Put a new item, only if it doesn't already exist.
+  err1 := table.Put(theRow).If("attribute_not_exists(Vin)").Run()
+
+  if err1 != nil {
+    // If it already exists, tries to update element
+    fmt.Println("Checking if the update is going to be made or not ...")
+    err2 := table.Update("Vin", theRow.Vin).
+        Set("Mileage", theRow.Mileage).
+        Set("Timestamp", theRow.Timestamp).
+        // TODO: Update the whole object
+        If("'Timestamp' < ?", theRow.Timestamp).
+        Run()
+
+    if err2 != nil {
+      // Cannot update, because condition failed
+      fmt.Println(err2)
+    } else {
+      // Condition met - Updated!
+      fmt.Println("Success: Conditional Write Made")
+    }
+
+  } else {
+    // New Row with new Vin is made
+    fmt.Println("New Entry")
+  }
 }

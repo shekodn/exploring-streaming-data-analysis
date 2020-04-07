@@ -1,11 +1,4 @@
 Parameters:
-  EC2InstanceType:
-    Type: String
-  EC2AMI:
-    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
-    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
-  KeyName:
-    Type: String
   CodePipelineBucket:
     Type: String
 
@@ -17,6 +10,15 @@ Resources:
       Tags:
         - Key: Name
           Value: !Ref AWS::StackName
+
+  SourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 100
+      Enabled: "true"
+      EventSourceArn: !GetAtt KinesisStream.Arn
+      FunctionName: !Ref TheLambda
+      StartingPosition: "TRIM_HORIZON"
 
   DynamoDB:
     Type: AWS::DynamoDB::Table
@@ -30,29 +32,14 @@ Resources:
       ProvisionedThroughput:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
-
       Tags:
-        - Key: Name
-          Value: !Ref AWS::StackName
-
-  TheLambda:
-    Type: AWS::Lambda::Function
-    DependsOn: LambdaExecutionRole
-    Properties:
-      Code:
-        S3Bucket: !Ref CodePipelineBucket
-        S3Key: function.zip
-      Description: 'TheLambda ARN'
-      Handler: main
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Runtime: go1.x
-      Tags:
-        - Key: FunctionName
+        - Key: TableName
           Value: !Ref AWS::StackName
 
   LambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
+      Description: 'LambdaExecutionRole ARN'
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -61,11 +48,55 @@ Resources:
             Service:
               - lambda.amazonaws.com
           Action: sts:AssumeRole
-      Description: 'LambdaExecutionRole ARN'
-      # Policies:
-      #   - AWSLambdaBasicExecutionRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchFullAccess
+      Policies:
+        # Ensure the role can perform the GetRecords, GetShardIterator, DescribeStream,
+        # and ListStreams Actions on your stream in IAM.
+        - PolicyName: !Sub '${AWS::StackName}-KinesisManagedPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kinesis:GetRecords
+                  - kinesis:GetShardIterator
+                  - kinesis:DescribeStream
+                  - kinesis:ListStreams
+                Resource:
+                  - arn:aws:kinesis:*
+
+        - PolicyName: !Sub '${AWS::StackName}-DynamoDB'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                Resource:
+                  - arn:aws:dynamodb:*
       Tags:
         - Key: RoleName
+          Value: !Ref AWS::StackName
+
+  TheLambda:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - LambdaExecutionRole
+    Properties:
+      FunctionName: !Ref AWS::StackName
+      Code:
+        S3Bucket: !Ref CodePipelineBucket
+        S3Key: function.zip
+      Description: 'TheLambda ARN'
+      Handler: main
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: go1.x
+      Timeout: 60
+      MemorySize: 1024
+      Tags:
+        - Key: FunctionName
           Value: !Ref AWS::StackName
 
 Outputs:
@@ -84,6 +115,11 @@ Outputs:
     Value: !Sub '${TheLambda.Arn}'
     Export:
       Name: TheLambda
+  TheLambdaFunctionName:
+    Description: 'TheLambda Function Name'
+    Value: !Ref TheLambda
+    Export:
+      Name: TheLambdaFunctionName
   DynamoDB:
     Description: 'DynamoDB ARN'
     Value: !Sub '${DynamoDB.Arn}'

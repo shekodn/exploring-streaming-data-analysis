@@ -1,6 +1,14 @@
-exports
-app
+# vendoring and dependencies
+vendor
+
+# Environment
 .env
-output.json
+
+# Binaries
+app
 main
+
+# Generated Files
+exports
+output.json
 *.zip

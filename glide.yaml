@@ -1,0 +1,14 @@
+package: github.com/shekodn/exploring-streaming-data-analysis
+import:
+- package: github.com/aws/aws-lambda-go
+  subpackages:
+  - events
+  - lambda
+- package: github.com/aws/aws-sdk-go
+  subpackages:
+  - aws
+  - aws/credentials
+  - aws/session
+- package: github.com/google/uuid
+- package: github.com/guregu/dynamo
+- package: github.com/joho/godotenv

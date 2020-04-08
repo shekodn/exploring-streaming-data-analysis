@@ -1,2 +1,6 @@
 exports
 app
+.env
+output.json
+main
+*.zip

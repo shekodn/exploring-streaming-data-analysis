@@ -1,6 +1,7 @@
 package main
 
 import(
+  "context"
   "fmt"
   _ "encoding/csv"
   "encoding/json"
@@ -9,18 +10,17 @@ import(
   _ "sync"
   "time"
 
-  "github.com/aws/aws-sdk-go/aws"
-  "github.com/aws/aws-sdk-go/aws/credentials"
+  _ "github.com/aws/aws-sdk-go/aws"
+  _ "github.com/aws/aws-sdk-go/aws/credentials"
   "github.com/aws/aws-sdk-go/aws/session"
 
-  "github.com/joho/godotenv"
+  _ "github.com/joho/godotenv"
   "github.com/guregu/dynamo"
   "github.com/google/uuid"
 
-  // "github.com/aws/aws-sdk-go/aws"
-  // "github.com/aws/aws-lambda-go"
-  // "github.com/aws/aws-sdk-go/service/kinesis"
-  // "github.com/aws/aws-lambda-go/lambda"
+  "github.com/aws/aws-lambda-go/events"
+  "github.com/aws/aws-lambda-go/lambda"
+
 )
 
 type Employee struct {
@@ -46,81 +46,6 @@ type Package struct {
 type Customer struct {
   Id uuid.UUID
   IsVip bool
-}
-
-//// Type of events
-// Creates event interface in order to be able to create an event according
-// to the type
-type Event_iface interface {}
-
-type EventSniffer struct {
-  Event string
-}
-
-type TruckArrives struct {
-  Timestamp time.Time
-  Vehicle Vehicle
-  Location Location
-}
-
-type TruckDeparts struct {
-  Timestamp time.Time
-  Vehicle Vehicle
-  Location Location
-}
-
-type MechanicChangesOil struct {
-  Timestamp time.Time
-  Employee Employee
-  Vehicle Vehicle
-}
-
-type DriverDeliversPackage struct {
-  Timestamp time.Time
-  Employee Employee
-  // `package`: Package, customer: Customer, location: Location)
-}
-
-type DriverMissesCustomer struct {
-  Timestamp time.Time
-  Employee Employee
-  // `package`: Package, customer: Customer, location: Location)
-}
-
-// Factory Methods
-func NewTruckArrives(req []byte) *TruckArrives {
-	event := &TruckArrives{}
-  json.Unmarshal(req, &event)
-	var _ Event_iface = event // Enforce interface compliance
-	return event
-}
-
-func NewTruckDeparts(req []byte) *TruckDeparts {
-  event := &TruckDeparts{}
-  json.Unmarshal(req, &event)
-  var _ Event_iface = event // Enforce interface compliance
-  return event
-}
-
-func NewMechanicChangesOil(req []byte) *MechanicChangesOil {
-  event := &MechanicChangesOil{}
-  json.Unmarshal(req, &event)
-  var _ Event_iface = event // Enforce interface compliance
-  return event
-}
-
-func NewDriverDeliversPackage(req []byte) *DriverDeliversPackage {
-  event := &DriverDeliversPackage{}
-  json.Unmarshal(req, &event)
-  var _ Event_iface = event // Enforce interface compliance
-  return event
-}
-
-func NewDriverMissesCustomer(req []byte) *DriverMissesCustomer {
-  event := &DriverMissesCustomer{}
-  json.Unmarshal(req, &event)
-  var _ Event_iface = event // Enforce interface compliance
-  return event
 }
 
 // Factory - Assamble
@@ -219,30 +144,10 @@ type Row struct {
   Timestamp time.Time //aux
   Mileage int
   MileageAtOilChange int //optional - int
-
 }
 
 var db *dynamo.DB
 var dbTableName string
-
-func init() {
-
-  e := godotenv.Load()
-
-  if e != nil {
-    fmt.Println("ENV: ", e)
-  }
-
-  accessKey := os.Getenv("ACCESS_KEY")
-  secretKey := os.Getenv("SECRET_KEY")
-  region := os.Getenv("REGION")
-  dbTableName = os.Getenv("DYNAMO_DB_NAME")
-
-  db = dynamo.New(session.New(), &aws.Config{
-    Credentials: credentials.NewStaticCredentials(accessKey, secretKey, ""),
-    Region: aws.String(region),
-  })
-}
 
 func main() {
 
@@ -308,15 +213,49 @@ func main() {
   //   fmt.Println(value)
   // }
 
-  timestamp := "2015-01-12T12:42:00Z"
-  parsedTs, err := time.Parse(time.RFC3339, timestamp)
+  // timestamp := "2015-01-12T12:42:00Z"
+  // parsedTs, err := time.Parse(time.RFC3339, timestamp)
+  //
+  // if err != nil {
+  //   panic(err)
+  // }
 
-  if err != nil {
-    panic(err)
-  }
+  // row := Row{Vin: "6", Timestamp: parsedTs, Mileage: 2015}
 
-  row := Row{Vin: "6", Timestamp: parsedTs, Mileage: 2015}
-  Writer(db, row, dbTableName)
+
+  lambda.Start(handler)
+
+}
+
+// Lambda
+func handler(ctx context.Context, kinesisEvent events.KinesisEvent) error {
+
+    dbTableName = os.Getenv("DYNAMO_DB_NAME")
+
+    if dbTableName == "" {
+      panic("dbTableName is empty")
+    }
+
+    db := dynamo.New(session.New())
+
+    for _, record := range kinesisEvent.Records {
+        kinesisRecord := record.Kinesis
+        dataBytes := kinesisRecord.Data
+        // dataText := string(dataBytes)
+
+        // Declare a new EventSniffer struct
+        var eventSniffer EventSniffer
+        json.Unmarshal([]byte(dataBytes), &eventSniffer)
+
+        event := GetTypeOfEvent(eventSniffer.Event, dataBytes)
+        fmt.Println(event)
+
+        row := Row{Vin: "20"}
+
+        Writer(db, row, dbTableName)
+    }
+
+    return nil
 }
 
 // Mapper Implementation - Separates irrelevant rows from non-relevant.

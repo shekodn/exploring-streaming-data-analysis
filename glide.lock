@@ -1,0 +1,81 @@
+hash: c24fb56f03a71baa0180061b791125239a73352db6dc127d0af84b6b954e7108
+updated: 2020-04-08T12:04:36.90586-05:00
+imports:
+- name: github.com/aws/aws-lambda-go
+  version: fc7add73acf44313986ab05974e86bd08644d8e3
+  subpackages:
+  - events
+  - lambda
+  - lambda/handlertrace
+  - lambda/messages
+  - lambdacontext
+- name: github.com/aws/aws-sdk-go
+  version: 253a12c317ef122048ed335e0d5d7738c67d7aab
+  subpackages:
+  - aws
+  - aws/awserr
+  - aws/awsutil
+  - aws/client
+  - aws/client/metadata
+  - aws/corehandlers
+  - aws/credentials
+  - aws/credentials/ec2rolecreds
+  - aws/credentials/endpointcreds
+  - aws/credentials/processcreds
+  - aws/credentials/stscreds
+  - aws/crr
+  - aws/csm
+  - aws/defaults
+  - aws/ec2metadata
+  - aws/endpoints
+  - aws/request
+  - aws/session
+  - aws/signer/v4
+  - internal/context
+  - internal/ini
+  - internal/sdkio
+  - internal/sdkmath
+  - internal/sdkrand
+  - internal/sdkuri
+  - internal/shareddefaults
+  - internal/strings
+  - internal/sync/singleflight
+  - private/protocol
+  - private/protocol/json/jsonutil
+  - private/protocol/jsonrpc
+  - private/protocol/query
+  - private/protocol/query/queryutil
+  - private/protocol/rest
+  - private/protocol/xml/xmlutil
+  - service/dynamodb
+  - service/dynamodb/dynamodbattribute
+  - service/dynamodb/dynamodbiface
+  - service/sts
+  - service/sts/stsiface
+- name: github.com/cenkalti/backoff
+  version: 18fe4ce5a8550e0d0919b680ad3c080a5455bddf
+- name: github.com/gofrs/uuid
+  version: abfe1881e60ef34074c1b8d8c63b42565c356ed6
+- name: github.com/google/uuid
+  version: bd451584982ecf4ca5b1e5938cf168e17e30d837
+- name: github.com/guregu/dynamo
+  version: 10b9f1a9e4d0582e95d15ed638a2e8a4553984fd
+  subpackages:
+  - internal/exprs
+- name: github.com/jmespath/go-jmespath
+  version: 2437e8417af5203cd4f1f97f99fc289bdeea1360
+- name: github.com/joho/godotenv
+  version: 5c0e6c6ab1a0a9ef0a8822cba3a05d62f7dad941
+- name: github.com/konsorten/go-windows-terminal-sequences
+  version: f55edac94c9bbba5d6182a4be46d86a2c9b5b50e
+- name: github.com/sirupsen/logrus
+  version: 839c75faf7f98a33d445d181f3018b5c3409a45e
+- name: golang.org/x/net
+  version: d3edc9973b7eb1fb302b0ff2c62357091cea9a30
+  subpackages:
+  - context
+- name: golang.org/x/sys
+  version: b47fdc937951267e2d980171881317deea47f29b
+  subpackages:
+  - unix
+testImports: []

@@ -13,6 +13,11 @@ import (
 type Event_iface interface {
     Assemble(dataBytes []byte)
     String() string
+    GetVin() string
+    GetTimestamp() time.Time
+    GetLatitude() float64
+    GetLongitude() float64
+    GetMileage() int
 }
 
 type Event struct {
@@ -122,4 +127,87 @@ func (e DriverMissesCustomer) String() string {
       e.Timestamp,
       e.Employee.Id, e.Employee.JobRole,
     )
+}
+
+func (e Event) GetTimestamp() time.Time {
+    return e.Timestamp
+}
+
+func (e TruckArrives) GetVin() string {
+    return e.Vehicle.Vin
+}
+
+func (e TruckDeparts) GetVin() string {
+    return e.Vehicle.Vin
+}
+
+func (e MechanicChangesOil) GetVin() string {
+    return e.Vehicle.Vin
+}
+
+func (e DriverDeliversPackage) GetVin() string {
+    return ""
+}
+
+func (e DriverMissesCustomer) GetVin() string {
+    return ""
+}
+func (e TruckArrives) GetLatitude() float64 {
+    return e.Location.Latitude
+}
+
+func (e TruckDeparts) GetLatitude() float64 {
+    return e.Location.Latitude
+}
+
+func (e MechanicChangesOil) GetLatitude() float64 {
+    return 0
+}
+
+func (e DriverDeliversPackage) GetLatitude() float64 {
+    return 0
+}
+
+func (e DriverMissesCustomer) GetLatitude() float64 {
+    return 0
+}
+
+func (e TruckArrives) GetLongitude() float64 {
+    return e.Location.Longitude
+}
+
+func (e TruckDeparts) GetLongitude() float64 {
+    return e.Location.Longitude
+}
+
+func (e MechanicChangesOil) GetLongitude() float64 {
+    return 0
+}
+
+func (e DriverDeliversPackage) GetLongitude() float64 {
+    return 0
+}
+
+func (e DriverMissesCustomer) GetLongitude() float64 {
+    return 0
+}
+
+func (e TruckArrives) GetMileage() int {
+    return e.Vehicle.Mileage
+}
+
+func (e TruckDeparts) GetMileage() int {
+    return e.Vehicle.Mileage
+}
+
+func (e MechanicChangesOil) GetMileage() int {
+    return e.Vehicle.Mileage
+}
+
+func (e DriverDeliversPackage) GetMileage() int {
+    return 0
+}
+
+func (e DriverMissesCustomer) GetMileage() int {
+    return 0
 }

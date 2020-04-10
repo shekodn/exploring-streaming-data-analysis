@@ -2,175 +2,73 @@ package models
 
 import(
   "fmt"
-  "strconv"
+  _ "strconv"
   "time"
 )
 
-// DynamoDB Schema:
-// Truck VIN | Latitude | Longitude | Location timestamp | Mileage | Mileage at oil change
+type Row_iface interface {
+    Assemble(event Event_iface)
+    String() string
+    GetVin() string
+    GetLocationTs() time.Time
+}
 
 type Row struct {
-  EventType string
-  Vin string
-  Location //option - location, DateTime
-  Timestamp time.Time //aux
-  Mileage int
-  MileageAtOilChange int //optional - int
+    Vin string
+    Latitude float64
+    Longitude float64
+    LocationTs time.Time
+    Mileage int
+    MileageAtOilChange int
 }
 
-
-func Reducer(mapList chan []Row, sendFinalValue chan []Row) {
-
-  final := []Row{}
-
-  for list := range mapList {
-    for _, value := range list {
-      if (value.EventType == "TRUCK_ARRIVES") || (value.EventType == "TRUCK_DEPARTS") {
-        final = append(final, value)
-      }
-    }
-  }
-  sendFinalValue <- final
-
+type SomeRow struct {
+    Row
 }
 
-func Groupper(reducedList []Row)  map[string]Row {
-
-  final := make(map[string]Row)
-
-  for _, list := range reducedList {
-
-    // Stores truck identifier
-    truckVin := list.Vin
-
-    if _, ok := final[truckVin]; ok {
-      // Checks which time is more recent.
-      if final[truckVin].Timestamp.Before(list.Timestamp) {
-        final[truckVin] = list
-      }
-    } else {
-      final[truckVin] = list
-    }
-  }
-
-  return final
+func (r Row) String() string {
+    return fmt.Sprintf("Row: %s - %f - %f - %s - %x - %x",
+      r.Vin,
+      r.Latitude,
+      r.Longitude,
+      r.LocationTs,
+      r.Mileage,
+      r.MileageAtOilChange,
+    )
 }
 
+// Interfcae Methods
+func (row *SomeRow) Assemble(event Event_iface) {
+  	fmt.Println("Assembling components for SomeRow")
 
-// Mapper Implementation - Separates irrelevant rows from non-relevant.
-// Relevant rows are: TruckArrives (TA), TruckDeparts (TD), MechanicChangesOil (MCO)
-func Map(event []string) []Row {
-  list := []Row{}
-
-  // "TRUCK_ARRIVES","6","51.522834","-0.081813","2018-01-12T12:42:00Z","33207","1HGCM82633A004352"
-  eventType := event[0]
-  elevation := event[1]
-  latitude  := event[2]
-  longitude := event[3]
-  timestamp := event[4]
-  mileage   := event[5]
-  truckVin  := event[6]
-
-  parsedElevation, err := strconv.Atoi(elevation)
-
-  if err != nil {
-    panic(err)
-  }
-
-  parsedMileage, err := strconv.Atoi(mileage)
-
-  if err != nil {
-    panic(err)
-  }
-
-
-  parsedTs, err := time.Parse(time.RFC3339, timestamp)
-
-  if err != nil {
-    panic(err)
-  }
-
-  parsedLat, err := strconv.ParseFloat(latitude, 64)
-
-  if err != nil {
-    panic(err)
-  }
-
-
-  parsedLong, err := strconv.ParseFloat(longitude, 64)
-
-  if err != nil {
-    panic(err)
-  }
-
-  list = append(list, Row {
-    EventType: eventType,
-    Location: Location {
-      Elevation: parsedElevation,
-      Latitude: parsedLat,
-      Longitude: parsedLong,
-    },
-    Timestamp: parsedTs,
-    Mileage: parsedMileage,
-    Vin: truckVin,
-  })
-
-  return list
+    row.Vin = event.GetVin()
+    row.Latitude = event.GetLatitude()
+    row.Longitude = event.GetLongitude()
+    row.LocationTs = event.GetTimestamp()
+    row.Mileage = event.GetMileage()
+    var _ Row_iface = row // Enforce interface compliance
 }
 
-/////
-// Creates Aggregator interface in order to be able to create an aggregation
-// according to the type: TruckArrives (TA), TruckDeparts (TD), MechanicChangesOil (MCO)
-type Aggregator_iface interface {}
-
-// object Aggregator {
-//
-//   def map(event: Event): Option[Row] = event match {
-//     case TA(ts, v, loc) => Some(Row(v.vin, v.mileage, None, Some(loc, ts)))
-//     case TD(ts, v, loc) => Some(Row(v.vin, v.mileage, None, Some(loc, ts)))
-//     case MCO(ts, _, v)  => Some(Row(v.vin, v.mileage, Some(v.mileage), None))
-//     case _              => None
-//   }
-
-type TruckArrivesAggregator struct {
-  // fmt.Println("TruckArrivesAggregator")
-  // ts, v, loc
+func (r Row) GetVin() string {
+    return r.Vin
 }
 
-type TruckDepartsAggregator struct {
-  // fmt.Println("TruckDepartsAggregator")
-  // ts, v, loc
+func (r Row) GetLocationTs() time.Time {
+    return r.LocationTs
 }
 
-type MechanicChangesOilAggregator struct {
-  // fmt.Println("MechanicChangesOilAggregator")
-  // ts, _, v
+func (r Row) GetLatitude() float64 {
+    return r.Latitude
 }
 
-func NewTruckArrivesAggregator() {
-  fmt.Println("TruckArrivesAggregator")
-  // ts, v, loc
+func (r Row) GetLongitude() float64 {
+    return r.Longitude
 }
 
-func NewTruckDepartsAggregator() {
-  fmt.Println("TruckDepartsAggregator")
-  // ts, v, loc
+func (r Row) GetMileage() int {
+    return r.Mileage
 }
 
-func NewMechanicChangesOilAggregator() {
-  fmt.Println("MechanicChangesOilAggregator")
-  // ts, _, v
-}
-
-func GetRelevantRow(event string) Aggregator_iface {
-	switch event {
-
-    case "TRUCK_ARRIVES":
-      return nil
-    case "TRUCK_DEPARTS":
-      return nil
-    default:
-  		fmt.Println("type undefined")
-  		return nil
-  }
+func (r Row) GetMileageAtOilChange() int{
+    return r.MileageAtOilChange
 }

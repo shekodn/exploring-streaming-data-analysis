@@ -20,7 +20,7 @@ func GetDb() *dynamo.DB {
     return db
 }
 
-func Writer(theRow Row, dbTableName string) {
+func Writer(theRow Row_iface, dbTableName string) {
 
   table := db.Table(dbTableName)
 
@@ -32,11 +32,11 @@ func Writer(theRow Row, dbTableName string) {
   if err1 != nil {
     // If it already exists, tries to update element
     fmt.Println("Checking if the update is going to be made or not ...")
-    err2 := table.Update("Vin", theRow.Vin).
-        // Set("Mileage", theRow.Mileage).
-        // Set("Timestamp", theRow.Timestamp).
+    err2 := table.Update("Vin", theRow.GetVin()).
+        // Set("Mileage", theRow.GetMileage()).
+        Set("LocationTs", theRow.GetLocationTs()).
         // TODO: Update the whole object
-        // If("'Timestamp' < ?", theRow.Timestamp).
+        If("'LocationTs' < ?", theRow.GetLocationTs()).
         Run()
 
     if err2 != nil {
